@@ -4,6 +4,9 @@ import QuickAction from '../components/Button';
 import axios from 'axios';
 import { BACKEND_URL } from '../config/backendInfo';
 import {useAccount} from "wagmi";
+import {ethers} from "ethers"
+import { ABI, contractAddress } from '../config/contractInfo';
+import { useWalletClient } from 'wagmi';
 
 
 export default function AIChat() {
@@ -18,6 +21,10 @@ export default function AIChat() {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef(null);
   const {address} = useAccount();
+
+  const {data: walletClient} = useWalletClient();
+
+  console.log(walletClient);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -42,7 +49,37 @@ export default function AIChat() {
         userId : address
     })
 
-    let response = res.data.data;
+    if(res.data.action){
+      if(res.data.type == "stakeAmount"){
+        const res2 = await stakeAmount(res.data.data.amount);
+        if(res2.success){
+          res.data.data.msg = res2.msg;
+        }
+      }
+      else if(res.data.type == "unstakeAmount"){
+        const res2 = await unstakeAmount(res.data.data.amount);
+        if(res2.success){
+          res.data.data.msg = res2.msg;
+        }
+      }
+      else if(res.data.type == "reward"){
+        const res2 = await mintToken(res.data.data.amount);
+        if(res2.success){
+          res.data.data.msg = res2.msg;
+        }
+      }
+      else if(res.data.type === "rewardCount"){
+        console.log('heeh')
+        const res2 = await getTokenCount();
+        if(res2.success){
+          res.data.data.msg = res2.msg;
+        }
+      }
+    }
+
+    console.log("fucking response is : " , res);
+
+    let response = res.data.data.msg;
     console.log(response);
     setMessages(prev => [...prev,{
         id : Date.now() + 1,
@@ -53,9 +90,106 @@ export default function AIChat() {
     setInput('');
   };
 
-  const handleQuickAction = (query) => {
+const handleQuickAction = (query) => {
     handleSend(query);
   };
+
+
+const stakeAmount = async (amount) => {
+    console.log("Hi there");
+
+    try {
+        if (!amount || isNaN(parseFloat(amount))) {
+            return { success: false, msg: "Invalid stake amount specified" };
+        }
+
+        if (!walletClient) {
+            return { success: false, msg: "Wallet is not connected" };
+        }
+
+        const txRequest = {
+            to: contractAddress,
+            data: new ethers.Interface(ABI).encodeFunctionData("stakeMore", [ethers.parseEther(amount)]),
+            value: ethers.parseEther(amount).toString(),
+        };
+
+        console.log("Sending transaction:", txRequest);
+
+        const txHash = await walletClient.sendTransaction(txRequest);
+
+        console.log("Transaction Hash:", txHash);
+
+        return { success: true, msg: `Transaction sent successfully, hash: ${txHash}` };
+
+    } catch (error) {
+        console.error("Staking operation failed:", error);
+        return { success: false, msg: `Failed to stake tokens: ${error.message}` };
+    }
+};
+
+const unstakeAmount = async(amount) => {
+  try {
+      if (!amount || isNaN(parseFloat(amount))) {
+          return { success: false, msg: "Invalid unstake amount specified" };
+      }
+      const txRequest = {
+        to: contractAddress,
+        data: new ethers.Interface(ABI).encodeFunctionData("unstake", [ethers.parseEther(amount)]),
+      };
+
+      const txHash = await walletClient.sendTransaction(txRequest);
+      console.log("transaction hash is : " , txHash);
+      return { success: true, msg: `Transaction sent successfully, hash: ${txHash}` };
+
+  } catch (error) {
+      console.error("Unstaking operation failed:", error);
+      return { success: false, msg: "Failed to unstake tokens" };
+  }
+}
+
+const mintToken = async(amount) => {
+  try {
+      if (!amount || isNaN(parseInt(amount))) {
+          return { success: false, msg: "Invalid amount specified" };
+      }
+
+      const txRequest = {
+        to: contractAddress,
+        data: new ethers.Interface(ABI).encodeFunctionData("getRewards", [parseInt(amount)]),
+      };
+
+      const txHash = await walletClient.sendTransaction(txRequest);
+      console.log("transaction hash is : " , txHash);
+      return { success: true, msg: `Transaction sent successfully, hash: ${txHash}` };
+
+  } catch (error) {
+      console.error("Token minting failed:", error);
+      return { success: false, msg: "Failed to mint tokens" };
+  }
+}
+
+const getTokenCount = async () => {
+  try {
+      if (!walletClient) {
+          return { success: false, msg: "Wallet client not initialized" };
+      }
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner(address);
+
+      const contractWithSigner = new ethers.Contract(contractAddress, ABI, signer);
+
+      const count = await contractWithSigner.getRewardCount();
+
+      if (count === undefined) {
+          return { success: false, msg: "Invalid token count received" };
+      }
+
+      return { success: true, msg: `You have a total of ${parseInt(count.toString())} ORC token as reward` };
+  } catch (error) {
+      console.error("Token count retrieval failed:", error);
+      return { success: false, msg: `Failed to get token count: ${error.message}` };
+  }
+};
 
   return (
     <div className="max-w-4xl mx-auto">

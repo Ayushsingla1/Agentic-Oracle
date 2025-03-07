@@ -50,6 +50,10 @@ contract PriceOracleNetwork is ReentrancyGuard, Ownable {
         mintContract = _mint;
     }
 
+    function isRegistered() external view returns (bool) {
+        return agents[msg.sender].isRegistered;
+    }
+    
     function registerAsAgent() external payable nonReentrant {
         require(!agents[msg.sender].isRegistered, "Already registered");
         require(msg.value >= requiredStake, "Insufficient ETH sent to stake");

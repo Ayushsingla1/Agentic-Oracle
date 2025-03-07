@@ -12,7 +12,7 @@ const hf = new HfInference(process.env.HUGGING_FACE);
 const COINGECKO_API = "https://api.coingecko.com/api/v3";
 const contractABI = ABI;
 const RPC_URL = 'https://rpc.blaze.soniclabs.com';
-const contractAddress = "0x894f819425e78cA3d7a3b877c088120D0b3Efc75";
+const contractAddress = "0x7306E946d1E94cD984B5aBfccC07527Bad21B3EC";
 const privateKey = process.env.PRIVATE_KEY;
 let provider;
 let wallet;
@@ -30,13 +30,16 @@ catch (error) {
     console.error("Failed to initialize blockchain connection:", error);
     process.exit(1);
 }
-async function getCryptoPrices(ids = "sonic") {
+async function getCryptoPrices() {
     try {
-        const { data } = await axios.get(`https://api.binance.com/api/v3/ticker/price?symbol=SUSDT`);
-        if (!data) {
+        const { data: bitData } = await axios.get("https://api.bitget.com/api/v2/spot/market/tickers?symbol=SUSDT");
+        const { data: binData } = await axios.get(`https://api.binance.com/api/v3/ticker/price?symbol=SUSDT`);
+        if (!binData && !bitData) {
             return { success: false, msg: "No price data received" };
         }
-        return { success: true, msg: data };
+        const finalPrice = (parseFloat(bitData?.data[0].lastPr) + parseFloat(binData?.price)) / 2;
+        console.log(finalPrice);
+        return { success: true, price: finalPrice };
     }
     catch (error) {
         console.error("Failed to fetch crypto prices:", error);
@@ -56,6 +59,27 @@ async function getEthPrice(ids = "ethereum") {
         return { success: false, msg: "Failed to fetch ETH price" };
     }
 }
+async function isRegistered() {
+    try {
+        const tx = await contract.isRegistered();
+        console.log(tx);
+        if (!tx) {
+            const register = await contract.registerAsAgent({ value: ethers.parseEther("0.1") });
+            if (!tx) {
+                console.log("Error while registering as a agent , try again later");
+            }
+            else {
+                console.log("Welcome , Successfully registered as a new agent");
+            }
+        }
+        console.log("Registered Agent");
+        return;
+    }
+    catch (e) {
+        console.log(e);
+    }
+}
+await isRegistered();
 async function updatePrice() {
     try {
         const priceResponse = await getEthPrice();
@@ -77,26 +101,6 @@ async function updatePrice() {
         return { success: false, msg: "Failed to update price" };
     }
 }
-async function mintToken(amount) {
-    try {
-        if (!amount || isNaN(parseInt(amount))) {
-            return { success: false, msg: "Invalid amount specified" };
-        }
-        const tx = await contract.getRewards(parseInt(amount));
-        if (!tx) {
-            return { success: false, msg: "Transaction failed to initiate" };
-        }
-        const receipt = await tx.wait();
-        if (!receipt.status) {
-            return { success: false, msg: "Transaction failed to confirm" };
-        }
-        return { success: true, msg: tx.hash };
-    }
-    catch (error) {
-        console.error("Token minting failed:", error);
-        return { success: false, msg: "Failed to mint tokens" };
-    }
-}
 async function getTokenCount() {
     try {
         const count = await contract.getRewardCount();
@@ -108,48 +112,6 @@ async function getTokenCount() {
     catch (error) {
         console.error("Token count retrieval failed:", error);
         return { success: false, msg: "Failed to get token count" };
-    }
-}
-async function stakeAmount(amount, address) {
-    try {
-        if (!amount || isNaN(parseFloat(amount))) {
-            return { success: false, msg: "Invalid stake amount specified" };
-        }
-        const tx = await contract.stakeMore(ethers.parseEther(amount), {
-            value: ethers.parseEther(amount)
-        });
-        if (!tx) {
-            return { success: false, msg: "Staking transaction failed to initiate" };
-        }
-        const receipt = await tx.wait();
-        if (!receipt.status) {
-            return { success: false, msg: "Staking transaction failed to confirm" };
-        }
-        return { success: true, msg: `Transaction completed successfully, hash: ${tx.hash}` };
-    }
-    catch (error) {
-        console.error("Staking operation failed:", error);
-        return { success: false, msg: "Failed to stake tokens" };
-    }
-}
-async function unstakeAmount(amount, account) {
-    try {
-        if (!amount || isNaN(parseFloat(amount))) {
-            return { success: false, msg: "Invalid unstake amount specified" };
-        }
-        const tx = await contract.unstake(ethers.parseEther(amount));
-        if (!tx) {
-            return { success: false, msg: "Unstaking transaction failed to initiate" };
-        }
-        const receipt = await tx.wait();
-        if (!receipt.status) {
-            return { success: false, msg: "Unstaking transaction failed to confirm" };
-        }
-        return { success: true, msg: `Transaction completed successfully, hash: ${tx.hash}` };
-    }
-    catch (error) {
-        console.error("Unstaking operation failed:", error);
-        return { success: false, msg: "Failed to unstake tokens" };
     }
 }
 async function getHistoricalData(coin = "ethereum", days = 7) {
@@ -250,26 +212,19 @@ app.post("/query", async (req, res) => {
             case "staking":
                 const number = userQuery.match(/\d+(\.\d+)?/g);
                 if (number) {
-                    const stakeResponse = await stakeAmount(number[0], userId);
-                    if (!stakeResponse.success) {
-                        return res.json({ type: "staking", data: stakeResponse.msg });
-                    }
-                    return res.json({ type: "staking", data: stakeResponse.msg });
+                    return res.json({ type: "stakeAmount", action: true, data: { amount: String(number) } });
                 }
                 else {
                     return res.json({
                         type: "staking",
-                        data: "As you stake more amount of money you'll be given priority points and this will give you better yields"
+                        data: "As you stake more amount of money you'll be given priority points and this will give you better yields",
+                        action: false
                     });
                 }
             case "unstake":
                 const amount = userQuery.match(/\d+(\.\d+)?/g);
                 if (amount) {
-                    const unstakeResponse = await unstakeAmount(amount[0], userId);
-                    if (!unstakeResponse.success) {
-                        return res.json({ type: "unstaking", data: unstakeResponse.msg });
-                    }
-                    return res.json({ type: "unstaking", data: unstakeResponse.msg });
+                    return res.json({ type: "unstakeAmount", action: true, data: { amount: String(amount) } });
                 }
                 else {
                     return res.json({
@@ -280,18 +235,10 @@ app.post("/query", async (req, res) => {
             case "reward":
                 const tokenCount = userQuery.match(/\d+(\.\d+)?/g);
                 if (tokenCount) {
-                    const mintResponse = await mintToken(tokenCount[0]);
-                    if (!mintResponse.success) {
-                        return res.json({ type: "reward", data: mintResponse.msg });
-                    }
-                    return res.json({ type: "reward", data: `You've been minted ${tokenCount} tokens` });
+                    return res.json({ type: "reward", action: true, data: { amount: String(tokenCount) } });
                 }
                 else {
-                    const countResponse = await getTokenCount();
-                    if (!countResponse.success) {
-                        return res.json({ type: "rewardCount", data: countResponse.msg });
-                    }
-                    return res.json({ type: "rewardCount", data: `You have a total of ${countResponse.msg} amount of tokens` });
+                    return res.json({ type: "rewardCount", action: true, data: {} });
                 }
             default:
                 return res.status(400).json({ type: "error", data: "Unknown query type" });
@@ -303,7 +250,16 @@ app.post("/query", async (req, res) => {
     }
 });
 setInterval(updatePrice, 16 * 60 * 1000);
-const PORT = 3001;
+const PORT = 3002;
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    const banner = `
+     █████╗ ██╗     ██████╗ ██████╗  █████╗  ██████╗██╗     ███████╗
+    ██╔══██╗██║    ██╔═══██╗██╔══██╗██╔══██╗██╔════╝██║     ██╔════╝
+    ███████║██║    ██║   ██║██████╔╝███████║██║     ██║     █████╗  
+    ██╔══██║██║    ██║   ██║██╔══██╗██╔══██║██║     ██║     ██╔══╝  
+    ██║  ██║██║    ╚██████╔╝██║  ██║██║  ██║╚██████╗███████╗███████╗
+    ╚═╝  ╚═╝╚═╝     ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝╚══════╝                                                      
+  `;
+    console.log(banner);
+    console.log('    Welcome To Agentic-Oracle     ');
 });

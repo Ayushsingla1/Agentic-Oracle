@@ -14,7 +14,7 @@ export default function Navigation() {
        <div className='flex justify-between items-center h-16'>
        <div className="flex h-16 items-center gap-4">
           <Link
-            to="/"
+            to="/dashboard"
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
               isActive('/') 
                 ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30' 
