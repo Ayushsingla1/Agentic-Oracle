@@ -2,8 +2,6 @@ import express from "express";
 import axios from "axios";
 import { HfInference } from "@huggingface/inference";
 import cors from "cors";
-import { ethers } from "ethers";
-import { ABI } from "./config.js";
 import 'dotenv/config';
 
 const app = express();
@@ -11,38 +9,8 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-interface ResponseType {
-    success: boolean;
-    msg: string | number | object;
-}
-
 const hf = new HfInference(process.env.HUGGING_FACE);
 const COINGECKO_API = "https://api.coingecko.com/api/v3";
-const contractABI = ABI;
-
-const RPC_URL = 'https://rpc.blaze.soniclabs.com';
-const contractAddress = "0x7306E946d1E94cD984B5aBfccC07527Bad21B3EC";
-const privateKey = process.env.PRIVATE_KEY;
-
-let provider: ethers.JsonRpcProvider;
-let wallet: ethers.Wallet;
-let contract: ethers.Contract;
-
-
-if (!privateKey) {
-    console.error("Private key not found in environment variables");
-    process.exit(1);
-}
-
-try {
-    provider = new ethers.JsonRpcProvider(RPC_URL);
-    wallet = new ethers.Wallet(privateKey, provider);
-    contract = new ethers.Contract(contractAddress, contractABI, wallet);
-} catch (error) {
-    console.error("Failed to initialize blockchain connection:", error);
-    process.exit(1);
-}
-
 
 async function getCryptoPrices() {
     try {
@@ -57,66 +25,6 @@ async function getCryptoPrices() {
     } catch (error) {
         console.error("Failed to fetch crypto prices:", error);
         return { success: false, msg: "Failed to fetch crypto prices" };
-    }
-}
-
-async function getEthPrice(ids = "ethereum"): Promise<ResponseType> {
-    try {
-        const { data } = await axios.get(`https://api.binance.com/api/v3/ticker/price?symbol=SUSDT`);
-        if (!data?.price) {
-            return { success: false, msg: "Invalid price data received" };
-        }
-        return { success: true, msg: String(data.price) };
-    } catch (error) {
-        console.error("Failed to get ETH price:", error);
-        return { success: false, msg: "Failed to fetch ETH price" };
-    }
-}
-
-async function isRegistered() {
-    try{
-        const tx = await contract.isRegistered();
-        console.log(tx);
-        if(!tx) {
-            const register = await contract.registerAsAgent({value : ethers.parseEther("0.1")});
-            if(!tx){
-                console.log("Error while registering as a agent , try again later")
-            }
-            else{
-                console.log("Welcome , Successfully registered as a new agent")
-            }
-        }
-        console.log("Registered Agent")
-        return
-    }
-    catch(e){
-        console.log(e);
-    }
-}
-
-await isRegistered();
-
-async function updatePrice(): Promise<ResponseType> {
-    try {
-        const priceResponse = await getEthPrice();
-        if (!priceResponse.success) {
-            return priceResponse;
-        }
-
-        const tx = await contract.submitPrice(ethers.parseEther(priceResponse.msg as string));
-        if (!tx) {
-            return { success: false, msg: "Transaction failed to initiate" };
-        }
-
-        const receipt = await tx.wait();
-        if (!receipt.status) {
-            return { success: false, msg: "Transaction failed to confirm" };
-        }
-
-        return { success: true, msg: tx.hash };
-    } catch (error) {
-        console.error("Price update failed:", error);
-        return { success: false, msg: "Failed to update price" };
     }
 }
 
@@ -266,22 +174,7 @@ app.post("/query", async (req: any, res: any) => {
     }
 });
 
-setInterval(updatePrice, 16 * 60 * 1000);
 
-const PORT = 3002;
-app.listen(PORT, () => {
-    const banner = `
-     █████╗ ██╗     ██████╗ ██████╗  █████╗  ██████╗██╗     ███████╗
-    ██╔══██╗██║    ██╔═══██╗██╔══██╗██╔══██╗██╔════╝██║     ██╔════╝
-    ███████║██║    ██║   ██║██████╔╝███████║██║     ██║     █████╗  
-    ██╔══██║██║    ██║   ██║██╔══██╗██╔══██║██║     ██║     ██╔══╝  
-    ██║  ██║██║    ╚██████╔╝██║  ██║██║  ██║╚██████╗███████╗███████╗
-    ╚═╝  ╚═╝╚═╝     ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝╚══════╝                                                      
-  `;
-
-  console.log(banner)
-  console.log('    Welcome To Agentic-Oracle     ')
-});
 
 
 
