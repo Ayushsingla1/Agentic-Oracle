@@ -6,7 +6,7 @@ AGENTIC ORACLE
 🚀 Overview
 -----------
 
-This project integrates **AI agents**, and **blockchain technology** to provide accurate **ETH price feeds** on **Sonic Blaze**. The AI agent securely stores transaction records using **SecretVault**, ensuring data integrity and privacy. Each node must register and submit price data, with a **5% tolerance mechanism** ensuring accuracy and penalizing anomalies. Users must **subscribe** to access the feed, while nodes earn **ERC-20 rewards** for correct submissions.
+This project integrates **AI agents**, and **blockchain technology** to provide accurate **ETH price feeds** on **Sonic Blaze**. Each node must register and submit price data, with a **5% tolerance mechanism** ensuring accuracy and penalizing anomalies. Users must **subscribe** to access the feed, while nodes earn **ERC-20 rewards** for correct submissions.
 
 📌 Features
 -----------
@@ -108,14 +108,6 @@ DOCUMENTATIONS
     ```
     npm run dev
     ```
-
-Contract Info
--------------
-**Contracts are deployed on Arbitrum Sepolia Testnet**
-
-**Main Contract Address** : 0x894f819425e78cA3d7a3b877c088120D0b3Efc75
-
-**Token Contract Address** : 0x24F415EA1530EFbCF192e7999CaFF388cb55E2A2
 
 
 🙌 Contributors
